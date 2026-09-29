@@ -1,0 +1,252 @@
+[
+  {
+    "id": "INC-104",
+    "incidentNumber": 104,
+    "service": "Payment API",
+    "severity": "HIGH",
+    "errorType": "MongoServerSelectionError",
+    "errorDetails": "Server selection timeout after 30000ms; topology was ReplSetNoPrimary",
+    "symptoms": [
+      "Database connection timeout",
+      "Payment checkout requests failing with 500",
+      "Spike in connection pool wait queues"
+    ],
+    "rootCause": "Connection pool exhaustion",
+    "rootCauseCategory": "Database overload",
+    "deploymentInfo": "v2.3.9 deployed 4 hours prior",
+    "resolution": "Increased connection pool size from 50 to 100 in database config and restarted pods",
+    "resolutionAction": "Increase connection pool",
+    "outcome": "WORKED",
+    "outcomeNotes": "Connection wait times dropped to 12ms. Zero 500 errors recorded for 72 hours post-fix.",
+    "lessonsLearned": "Default Mongo pool size of 50 is insufficient when traffic surges past 1,200 req/sec.",
+    "timestamp": "2026-08-14T09:23:00Z",
+    "tags": [
+      "mongodb",
+      "connection-pool",
+      "payment",
+      "timeout",
+      "latency"
+    ]
+  },
+  {
+    "id": "INC-152",
+    "incidentNumber": 152,
+    "service": "Payment API",
+    "severity": "HIGH",
+    "errorType": "MongoServerSelectionError",
+    "errorDetails": "Server selection timeout after 30000ms: no primary found in replica set rs0",
+    "symptoms": [
+      "Replica set primary election failure",
+      "Database unavailable for writes"
+    ],
+    "rootCause": "Incorrect database configuration",
+    "rootCauseCategory": "Configuration error",
+    "deploymentInfo": "ConfigMap rollout for TLS certificates",
+    "resolution": "Updated mongo connection string to include proper replicaSet=rs0 and readPreference=secondaryPreferred",
+    "resolutionAction": "Update configuration",
+    "outcome": "WORKED",
+    "outcomeNotes": "Service reconnected in 45 seconds once replica set options were restored.",
+    "lessonsLearned": "Helm chart deployment omitted replicaSet query param in connection URI template.",
+    "timestamp": "2026-08-28T14:15:00Z",
+    "tags": [
+      "mongodb",
+      "replica-set",
+      "configuration",
+      "payment"
+    ]
+  },
+  {
+    "id": "INC-087",
+    "incidentNumber": 87,
+    "service": "Payment API",
+    "severity": "MEDIUM",
+    "errorType": "MongoNetworkTimeout",
+    "errorDetails": "Socket timeout waiting for response after 5000ms on socket 10.0.4.12:27017",
+    "symptoms": [
+      "Intermittent payment failures",
+      "High P99 latency on /charge endpoint"
+    ],
+    "rootCause": "Network packet drop on VPC peering gateway",
+    "rootCauseCategory": "Network failure",
+    "deploymentInfo": "No recent deployment",
+    "resolution": "Failed over VPC peering routes to secondary gateway interface",
+    "resolutionAction": "Failover network route",
+    "outcome": "WORKED",
+    "outcomeNotes": "Network round-trip latency normalized to 3ms.",
+    "lessonsLearned": "AWS VPC peering interface had MTU mismatch causing jumbo frames to drop.",
+    "timestamp": "2026-07-19T18:40:00Z",
+    "tags": [
+      "network",
+      "mongodb",
+      "vpc",
+      "latency"
+    ]
+  },
+  {
+    "id": "INC-201",
+    "incidentNumber": 201,
+    "service": "Auth Service",
+    "severity": "CRITICAL",
+    "errorType": "JsonWebTokenError",
+    "errorDetails": "jwt signature is required or invalid signature on user token validation",
+    "symptoms": [
+      "100% of logins failing across all apps",
+      "All API calls returning 401 Unauthorized"
+    ],
+    "rootCause": "JWT secret key mismatch following secret rotation",
+    "rootCauseCategory": "Bad deployment",
+    "deploymentInfo": "v1.8.2 deployment with HashiCorp Vault auto-sync",
+    "resolution": "Rolled back Vault secret to previous revision and restarted Auth pods",
+    "resolutionAction": "Rollback deployment",
+    "outcome": "WORKED",
+    "outcomeNotes": "Immediate recovery. Token validation succeeded across all pods.",
+    "lessonsLearned": "Dual-signing window must be kept active for 24h before old secret retirement.",
+    "timestamp": "2026-09-02T11:05:00Z",
+    "tags": [
+      "auth",
+      "jwt",
+      "vault",
+      "secrets",
+      "rollback"
+    ]
+  },
+  {
+    "id": "INC-209",
+    "incidentNumber": 209,
+    "service": "Auth Service",
+    "severity": "HIGH",
+    "errorType": "RedisConnectionClosed",
+    "errorDetails": "Redis connection closed abruptly while fetching session store: ECONNRESET",
+    "symptoms": [
+      "Session cache miss storm",
+      "Postgres CPU spiked to 98% due to auth fallback"
+    ],
+    "rootCause": "Redis memory limit hit (maxmemory-eviction failed on volatile-lru)",
+    "rootCauseCategory": "Database overload",
+    "deploymentInfo": "No recent deployment, Black Friday traffic test",
+    "resolution": "Expanded Redis cluster node memory from 4GB to 16GB and altered policy to allkeys-lru",
+    "resolutionAction": "Scale infrastructure",
+    "outcome": "WORKED",
+    "outcomeNotes": "Eviction latency eliminated and Postgres CPU returned to 18%.",
+    "lessonsLearned": "Session keys lacked proper TTL expiry causing unbounded growth.",
+    "timestamp": "2026-09-10T16:20:00Z",
+    "tags": [
+      "redis",
+      "auth",
+      "cache",
+      "postgres",
+      "scaling"
+    ]
+  },
+  {
+    "id": "INC-310",
+    "incidentNumber": 310,
+    "service": "Checkout Service",
+    "severity": "CRITICAL",
+    "errorType": "PaymentGatewayTimeout",
+    "errorDetails": "Gateway HTTP 504 Gateway Timeout after 15000ms waiting for upstream partner API",
+    "symptoms": [
+      "Cart checkout stalled on spinner",
+      "Stripe webhooks queuing up past 5,000 backlogged items"
+    ],
+    "rootCause": "Upstream partner rate limit triggered due to missing idempotency retry backoff",
+    "rootCauseCategory": "Configuration error",
+    "deploymentInfo": "v3.1.0 introduced eager payment retries",
+    "resolution": "Enabled exponential backoff with jitter and reduced concurrent retry workers from 50 to 10",
+    "resolutionAction": "Update configuration",
+    "outcome": "WORKED",
+    "outcomeNotes": "Queue drained within 8 minutes. Upstream 429 and 504 rates dropped to 0%.",
+    "lessonsLearned": "Retries without exponential backoff cause self-inflicted DDoS on third-party APIs.",
+    "timestamp": "2026-09-15T08:12:00Z",
+    "tags": [
+      "checkout",
+      "gateway",
+      "rate-limiting",
+      "retry",
+      "stripe"
+    ]
+  },
+  {
+    "id": "INC-340",
+    "incidentNumber": 340,
+    "service": "Order Processor",
+    "severity": "HIGH",
+    "errorType": "KafkaConsumerRebalanceError",
+    "errorDetails": "CommitFailedException: Consumer group orders-stream rebalance in progress for 180s",
+    "symptoms": [
+      "Consumer lag spiked to 240,000 messages",
+      "Order status emails delayed by 45 minutes"
+    ],
+    "rootCause": "Max poll interval exceeded due to heavy synchronous PDF invoice generation",
+    "rootCauseCategory": "Resource exhaustion",
+    "deploymentInfo": "v2.0.4 with new high-res PDF generation module",
+    "resolution": "Moved invoice generation to asynchronous background BullMQ worker and bumped max.poll.interval.ms from 300000 to 600000",
+    "resolutionAction": "Update configuration",
+    "outcome": "WORKED",
+    "outcomeNotes": "Consumer rebalance settled and group remained STABLE. Lag cleared in 12 mins.",
+    "lessonsLearned": "Never perform heavy CPU blocking operations inside Kafka poll loops.",
+    "timestamp": "2026-09-18T14:30:00Z",
+    "tags": [
+      "kafka",
+      "consumer-lag",
+      "orders",
+      "rebalance",
+      "async"
+    ]
+  },
+  {
+    "id": "INC-412",
+    "incidentNumber": 412,
+    "service": "Search Service",
+    "severity": "MEDIUM",
+    "errorType": "ElasticsearchClusterHealthRed",
+    "errorDetails": "Primary shard [products_v2][0] failed to allocate: [circuit_breaking_exception] [parent] Data too large",
+    "symptoms": [
+      "Search results returning empty arrays",
+      "Elasticsearch JVM garbage collection pauses exceeding 12s"
+    ],
+    "rootCause": "JVM heap exhaustion from unindexed field wildcard aggregation",
+    "rootCauseCategory": "Resource exhaustion",
+    "deploymentInfo": "v1.4.0 added fuzzy wildcard query filter",
+    "resolution": "Rollback search query template to term-based search and cleared Elasticsearch fielddata cache",
+    "resolutionAction": "Rollback deployment",
+    "outcome": "WORKED",
+    "outcomeNotes": "Cluster health transitioned from RED to GREEN within 3 minutes.",
+    "lessonsLearned": "Wildcard aggregations on high-cardinality fields must be disabled in ES mapping.",
+    "timestamp": "2026-09-22T19:45:00Z",
+    "tags": [
+      "elasticsearch",
+      "search",
+      "jvm",
+      "heap",
+      "rollback"
+    ]
+  },
+  {
+    "id": "INC-099",
+    "incidentNumber": 99,
+    "service": "Payment API",
+    "severity": "HIGH",
+    "errorType": "MongoServerSelectionError",
+    "errorDetails": "Server selection timeout after 30000ms; topology was ReplSetNoPrimary",
+    "symptoms": [
+      "Database connection timeout",
+      "Sudden burst of 500 errors"
+    ],
+    "rootCause": "Attempted hot pod restart without checking connection pool metrics",
+    "rootCauseCategory": "Bad deployment",
+    "deploymentInfo": "Manual restart during traffic spike",
+    "resolution": "Blindly restarting pods without pool sizing adjustment failed and exacerbated cold-start storm",
+    "resolutionAction": "Restart service",
+    "outcome": "FAILED",
+    "outcomeNotes": "Restart caused all 40 pods to reconnect simultaneously, crushing the MongoDB router.",
+    "lessonsLearned": "DO NOT just restart pods for MongoServerSelectionError without inspecting pool exhaustion first.",
+    "timestamp": "2026-06-11T12:00:00Z",
+    "tags": [
+      "mongodb",
+      "antipattern",
+      "restart-failure",
+      "payment"
+    ]
+  }
+]

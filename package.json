@@ -1,0 +1,10 @@
+{
+  "name": "incident-memory-agent-root",
+  "version": "1.0.0",
+  "description": "🚨 Incident Memory Agent — AI SRE Agent with Hindsight Experience Loop",
+  "scripts": {
+    "dev:backend": "cd backend && node --watch server.js",
+    "dev:frontend": "cd frontend && npm.cmd run dev",
+    "install:all": "cd backend && npm.cmd install && cd ../frontend && npm.cmd install"
+  }
+}
